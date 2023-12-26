@@ -76,8 +76,6 @@ void TimerSerial::disableCompare()
 
 void TimerSerial::readyForNext()
 {
-  nextBit = 0;
-  nextByte = 0;
   disableCompare();
   enableChange();
 }
@@ -99,11 +97,47 @@ bool TimerSerial::end()
 
 void TimerSerial::compareIntr()
 {
+  bool bit = (PIND & (timer==0 ? _BV(PIND2) : _BV(PIND3))) != 0;
+  if (invert) bit = !bit;
   
+  if (nextBit == 0) {
+    // Start bit, must be false
+    if (bit) {
+      // Invalid noise - go back to detecting start bit flange
+      disableCompare();
+      enableChange();
+      return;
+    }
+    ++nextBit;
+    enableCompare();
+  }
+  else if (nextBit <= 8) {
+    nextByte |= (bit << (nextBit-1));
+    ++nextBit;
+    enableCompare();
+  }
+  else if (nextBit == 9) {
+    if (bit) {
+      // Correct stop bit (true) - add to buffer if there's room
+      if (bufCount < TIMER_SERIAL_BUFFER_SIZE) {
+        *pIn++ = nextByte;
+        ++bufCount;
+        if (pIn - buffer >= TIMER_SERIAL_BUFFER_SIZE) pIn = buffer;
+      }
+    }
+    // Set up reading next byte:
+    disableCompare();
+    enableChange();
+  }
 }
+
 void TimerSerial::changeIntr()
 {
-  
+  // Detected a change - set up timer
+  nextBit = 0;
+  nextByte = 0;
+  disableChange();
+  enableCompare();
 }
 
 
