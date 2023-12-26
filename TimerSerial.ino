@@ -95,11 +95,35 @@ bool TimerSerial::end()
   enabled = false;
 }
 
+bool TimerSerial::available()
+{
+  return bufCount > 0;
+}
+
+byte TimerSerial::read()
+{
+  byte value;
+  while (bufCount == 0);
+  cli();
+  value = *pOut++;
+  --bufCount;
+  sei();
+  if (pOut - buffer >= TIMER_SERIAL_BUFFER_SIZE) pOut = buffer;
+  return value;
+}
+
+bool TimerSerial::overflow()
+{
+  bool value = gotOverflow;
+  gotOverflow = false;
+  return value;
+}
+
 void TimerSerial::compareIntr()
 {
   bool bit = (PIND & (timer==0 ? _BV(PIND2) : _BV(PIND3))) != 0;
   if (invert) bit = !bit;
-  
+
   if (nextBit == 0) {
     // Start bit, must be false
     if (bit) {
@@ -124,6 +148,9 @@ void TimerSerial::compareIntr()
         ++bufCount;
         if (pIn - buffer >= TIMER_SERIAL_BUFFER_SIZE) pIn = buffer;
       }
+      else {
+        gotOverflow = true;
+      }
     }
     // Set up reading next byte:
     disableCompare();
@@ -139,8 +166,6 @@ void TimerSerial::changeIntr()
   disableChange();
   enableCompare();
 }
-
-
 
 ISR(TIMER2_COMPA_vect)
 {

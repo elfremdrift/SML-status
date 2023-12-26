@@ -15,6 +15,9 @@ public:
 
   bool begin();
   bool end();
+  bool available();
+  byte read();
+  bool overflow();
 
 private:
   byte timer;
@@ -30,6 +33,7 @@ private:
   static byte timersUsed;
   byte nextBit;
   byte nextByte;
+  bool gotOverflow = false;
 
   void readyForNext();
 
@@ -41,7 +45,7 @@ private:
   void compareIntr();
   void changeIntr();
 
-  
+
   friend void TIMER2_COMPA_vect();
   friend void TIMER2_COMPB_vect();
   friend void INT0_vect();
