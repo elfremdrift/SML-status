@@ -1,4 +1,5 @@
 #include "TimerSerial.hpp"
+#include "Parser.hpp"
 
 TimerSerial serial(10, 9600, true);
 

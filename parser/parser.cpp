@@ -1,6 +1,4 @@
-#include "parser.hpp"
-
-#ifdef SML_TEST
+#include "../SMLParser.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -145,5 +143,3 @@ int main()
 		}
 	}
 }
-
-#endif

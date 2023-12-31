@@ -1,7 +1,6 @@
 #pragma once
-#include <array>
 #include <stdint.h>
-#include <cstring>
+#include <string.h>
 
 #ifndef SML_DBG_LEVEL
 #define SML_DBG_LEVEL 0
@@ -36,12 +35,16 @@
 #define SML_DBG_ERROR(stuff)
 #endif
 
-#ifndef byte
-#define byte uint8_t
+#ifndef PROGMEM
+typedef uint8_t byte;
 #endif
 
+#ifndef SML_STACK_SIZE
 #define SML_STACK_SIZE 10
-#define SML_STRING_MAX_LEN 64
+#endif
+#ifndef SML_STRING_MAX_LEN
+#define SML_STRING_MAX_LEN 16
+#endif
 
 #ifdef PROGMEM
 #define SML_PROGMEM PROGMEM
@@ -79,7 +82,7 @@ public:
 
 	// Default constructor - pass everything to event handler class if needed
 	template<typename... ARGS>
-	SMLParser(ARGS&&... args) : SMLEventHandler(std::forward<ARGS>(args)...)
+	SMLParser(ARGS&&... args) : SMLEventHandler(args...)
 	{
 	}
 
@@ -489,16 +492,15 @@ private:
 
 	void crc16(const byte ch)  // Calculate crc16 on the fly
 	{
-		// TODO: Use PROGMEM on linux
-		static uint16_t crc16_table[] SML_PROGMEM = {
-				0xf78f, 0xe70e, 0xd68d, 0xc60c,
-				0xb58b, 0xa50a, 0x9489, 0x8408,
-				0x7387, 0x6306, 0x5285, 0x4204,
-				0x3183, 0x2102, 0x1081, 0x0000
+		static const uint16_t crc16_table[] SML_PROGMEM = {
+			0x078f, 0x170e, 0x268d, 0x360c,
+			0x458b, 0x550a, 0x6489, 0x7408,
+			0x8387, 0x9306, 0xa285, 0xb204,
+			0xc183, 0xd102, 0xe081, 0xf000
 		};
 
-		actSum = ( 0xf000 | (actSum >> 4) ) ^ SML_PROGMEM_READ_WORD(crc16_table + ((actSum & 0xf) ^ (ch & 0xf)));
-		actSum = ( 0xf000 | (actSum >> 4) ) ^ SML_PROGMEM_READ_WORD(crc16_table + ((actSum & 0xf) ^ (ch >> 4)));
+		actSum = ( actSum >> 4 ) ^ SML_PROGMEM_READ_WORD(crc16_table + ((actSum & 0xf) ^ (ch & 0xf)));
+		actSum = ( actSum >> 4 ) ^ SML_PROGMEM_READ_WORD(crc16_table + ((actSum & 0xf) ^ (ch >> 4)));
 	}
 
 
