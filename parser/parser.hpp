@@ -43,6 +43,16 @@
 #define SML_STACK_SIZE 10
 #define SML_STRING_MAX_LEN 64
 
+#ifdef PROGMEM
+#define SML_PROGMEM PROGMEM
+#define SML_PROGMEM_READ_BYTE(ptr) pgm_read_byte(ptr);
+#define SML_PROGMEM_READ_WORD(ptr) pgm_read_word(ptr);
+#else
+#define SML_PROGMEM
+#define SML_PROGMEM_READ_BYTE(ptr) (*(ptr))
+#define SML_PROGMEM_READ_WORD(ptr) (*(ptr))
+#endif
+
 enum class SMLParserType : byte {
 	  tbd = 255
 	, string = 0
@@ -77,6 +87,7 @@ public:
 	{
 		SML_DBG_ERROR("Calling reset at level " << getLevel())
 		toOutside();
+		SMLEventHandler::eventEnd(false);
 	}
 
 	void parse(byte ch)  //!< Parse next byte
@@ -232,7 +243,7 @@ private:
 		// Look at ch to determine what this entry is
 		if (ch == 0) {
 			SML_DBG_INFO("Eol encountered at level " << getLevel())
-			SMLEventHandler::eventValue(level-stack, Type::eol, 0, nullptr);
+			SMLEventHandler::eventValue(level-stack, Type::eol, (level > stack) ? (level-1)->current : 0, 0, nullptr);
 			done();
 			return false;
 		}
@@ -244,6 +255,11 @@ private:
 			break;
 		case Type::boolean:
 			value.boolean = false;
+			if (level->length != 1) {
+				SML_DBG_ERROR("Illegal boolean length (not 1) encountered at level " << getLevel())
+				reset();
+				return false;
+			}
 			break;
 		case Type::integer:
 			value.integer = 0;
@@ -284,7 +300,7 @@ private:
 	bool array(const byte ch)  //!< Parse array
 	{
 		if (level->current == 0) {
-			SMLEventHandler::eventLevel(level-stack);
+			SMLEventHandler::eventEnterArray(level-stack, level->length);
 			SML_DBG_INFO("Array size " << level->length << " encountered at level " << getLevel())
 		}
 		SML_DBG_TRACE("Parse array row " << level->current << " at level " << getLevel())
@@ -299,13 +315,8 @@ private:
 	bool boolean(const byte ch)  //!< Parse boolean
 	{
 		SML_DBG_TRACE("Parse boolean byte " << level->current << " at level " << getLevel())
-		// TODO can only be length one...
-		if (level->current < level->length) {
-			++level->current;
-		}
-		if (level->current >= level->length) {
-			done();
-		}
+		value.boolean = ch != 0;
+		done();
 		return false;
 	}
 
@@ -379,7 +390,7 @@ private:
 		case Type::uinteger:
 		case Type::boolean:
 		case Type::string:
-			SMLEventHandler::eventValue(level-stack, level->type, level->length, &value);
+			SMLEventHandler::eventValue(level-stack, level->type, (level > stack) ? (level-1)->current : 0, level->length, &value);
 			break;
 		default:
 			break;
@@ -425,13 +436,13 @@ private:
 	void leave()  //!< Leave stack level
 	{
 		if (level == stack) {
-			if (level->type == Type::array) SMLEventHandler::eventLevel(0);
+			if (level->type == Type::array) SMLEventHandler::eventLeaveArray(0);
 			level->init();
 		}
 		else if (level > stack) {
 			--level;
 			while (level->type == Type::array && level->current >= level->length) {
-				SMLEventHandler::eventLevel(level-stack);
+				SMLEventHandler::eventLeaveArray(level-stack);
 				if (level > stack) {
 					--level;
 				}
@@ -479,15 +490,15 @@ private:
 	void crc16(const byte ch)  // Calculate crc16 on the fly
 	{
 		// TODO: Use PROGMEM on linux
-		static uint16_t crc16_table[] = {
+		static uint16_t crc16_table[] SML_PROGMEM = {
 				0xf78f, 0xe70e, 0xd68d, 0xc60c,
 				0xb58b, 0xa50a, 0x9489, 0x8408,
 				0x7387, 0x6306, 0x5285, 0x4204,
 				0x3183, 0x2102, 0x1081, 0x0000
 		};
 
-		actSum = ( 0xf000 | (actSum >> 4) ) ^ crc16_table[(actSum & 0xf) ^ (ch & 0xf)];
-		actSum = ( 0xf000 | (actSum >> 4) ) ^ crc16_table[(actSum & 0xf) ^ (ch >> 4)];
+		actSum = ( 0xf000 | (actSum >> 4) ) ^ SML_PROGMEM_READ_WORD(crc16_table + ((actSum & 0xf) ^ (ch & 0xf)));
+		actSum = ( 0xf000 | (actSum >> 4) ) ^ SML_PROGMEM_READ_WORD(crc16_table + ((actSum & 0xf) ^ (ch >> 4)));
 	}
 
 
